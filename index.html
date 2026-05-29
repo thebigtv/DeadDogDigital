@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SiteCraft — Website Configurator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fraunces', 'Georgia', 'serif'],
+            body: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    *, body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-display { font-family: 'Fraunces', Georgia, serif; }
+    :root { --ink: #141420; --cream: #f8f7f3; --teal: #0b8f84; --teal2: #0a7a70; --mist: #f0efea; }
+    body { background: var(--cream); color: var(--ink); }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #eee; }
+    ::-webkit-scrollbar-thumb { background: var(--teal); border-radius: 3px; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp .55s ease both; }
+    .d1 { animation-delay: .1s; } .d2 { animation-delay: .22s; } .d3 { animation-delay: .36s; } .d4 { animation-delay: .52s; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin .8s linear infinite; }
+    .view { display: none; } .view.active { display: block; }
+    .sidebar { background: var(--ink); min-height: 100vh; width: 240px; flex-shrink: 0; }
+    .step-node { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; transition: all .3s; flex-shrink: 0; }
+    .step-node.done { background: var(--teal); color: #fff; }
+    .step-node.active { background: #fff; color: var(--ink); box-shadow: 0 0 0 4px rgba(255,255,255,.15); }
+    .step-node.pending { background: rgba(255,255,255,.08); color: rgba(255,255,255,.35); }
+    .sel-card { border: 2px solid transparent; cursor: pointer; transition: all .2s; border-radius: 14px; }
+    .sel-card:hover { transform: translateY(-2px); border-color: rgba(11,143,132,.35); }
+    .sel-card.selected { border-color: var(--teal); box-shadow: 0 0 0 4px rgba(11,143,132,.12); }
+    .tog { position: relative; width: 46px; height: 25px; flex-shrink: 0; }
+    .tog input { opacity: 0; width: 0; height: 0; }
+    .tog-slider { position: absolute; inset: 0; background: #d1d5db; border-radius: 25px; transition: .3s; cursor: pointer; }
+    .tog-slider::before { content: ''; position: absolute; width: 19px; height: 19px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .3s; }
+    .tog input:checked + .tog-slider { background: var(--teal); }
+    .tog input:checked + .tog-slider::before { transform: translateX(21px); }
+    .tog input:disabled + .tog-slider { opacity: .5; cursor: not-allowed; }
+    .field { width: 100%; padding: 12px 16px; border: 1.5px solid #e2e0d8; border-radius: 12px; background: #fff; color: var(--ink); font-size: 14px; transition: all .2s; outline: none; }
+    .field:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(11,143,132,.1); }
+    #toast { position: fixed; top: 20px; right: 20px; z-index: 9999; transform: translateX(130%); transition: transform .3s ease; }
+    #toast.show { transform: translateX(0); }
+    .hero-bg { background: linear-gradient(135deg, #121220 0%, #1e1e32 55%, #121220 100%); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); display: inline-block; }
+    .tbl-head th { background: var(--ink); color: rgba(255,255,255,.55); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+    #mob-bar { transition: width .3s ease; }
+    .grain::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9000; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.032'/%3E%3C/svg%3E"); opacity: .45; }
+  </style>
+</head>
+<body class="grain min-h-screen">
+
+<!-- TOAST -->
+<div id="toast" class="bg-emerald-600 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+  <span id="toast-msg">Saved!</span>
+</div>
+
+<!-- ═══════ LANDING ═══════ -->
+<div id="view-landing" class="view active">
+  <nav class="fixed top-0 inset-x-0 z-50 bg-[#f8f7f3]/90 backdrop-blur-md border-b border-black/5">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-2.5"><span class="dot"></span><span class="font-display font-bold text-xl tracking-tight">SiteCraft</span></div>
+      <div class="hidden md:flex items-center gap-7 text-sm font-medium text-[#141420]/60">
+        <a href="#" onclick="smoothTo('features');return false" class="hover:text-[var(--teal)] transition-colors">Features</a>
+        <a href="#" onclick="smoothTo('how');return false" class="hover:text-[var(--teal)] transition-colors">How it works</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="showView('admin')" class="text-sm font-medium text-[#141420]/55 hover:text-[var(--teal)] transition-colors hidden sm:block">Admin</button>
+        <button onclick="showView('configurator');initWizard();" class="bg-[#141420] text-[#f8f7f3] px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-[var(--teal)] transition-colors">Start Building →</button>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero-bg min-h-screen flex items-center pt-16">
+    <div class="max-w-6xl mx-auto px-6 py-24 w-full">
+      <div class="max-w-3xl">
+        <div class="fade-up d1 inline-flex items-center gap-2 bg-white/10 text-white/70 text-xs font-semibold px-3 py-1.5 rounded-full mb-8 tracking-wide">
+          <span class="w-1.5 h-1.5 rounded-full bg-[var(--teal)]"></span>
+          Professional websites in minutes · No code required
+        </div>
+        <h1 class="fade-up d2 font-display font-bold text-white leading-[1.1] mb-6" style="font-size:clamp(40px,6vw,72px)">
+          Your business<br/><em class="not-italic text-[var(--teal)]">deserves</em> a<br/>great website.
+        </h1>
+        <p class="fade-up d3 text-white/55 text-lg leading-relaxed mb-10 max-w-lg">Configure, preview and launch a beautiful website for your small business — no technical knowledge needed.</p>
+        <div class="fade-up d4 flex flex-col sm:flex-row gap-4">
+          <button onclick="showView('configurator');initWizard();" class="bg-[var(--teal)] text-white px-8 py-4 rounded-xl font-semibold text-base hover:bg-[var(--teal2)] transition-colors shadow-lg flex items-center justify-center gap-2">
+            Configure My Website
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          </button>
+          <button onclick="smoothTo('features')" class="border border-white/20 text-white/80 px-8 py-4 rounded-xl font-semibold text-base hover:bg-white/10 transition-colors">See how it works</button>
+        </div>
+      </div>
+      <div class="fade-up d4 mt-16 max-w-5xl">
+        <div class="bg-white/6 backdrop-blur border border-white/10 rounded-2xl p-3 shadow-2xl">
+          <div class="flex items-center gap-1.5 px-2 mb-2.5">
+            <span class="w-3 h-3 rounded-full bg-rose-400/70"></span>
+            <span class="w-3 h-3 rounded-full bg-amber-400/70"></span>
+            <span class="w-3 h-3 rounded-full bg-emerald-400/70"></span>
+            <div class="flex-1 bg-white/10 rounded h-5 mx-4"></div>
+          </div>
+          <div class="rounded-xl overflow-hidden" style="height:260px">
+            <iframe id="hero-preview" class="w-full h-full border-0" title="Preview" loading="lazy"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="py-24 bg-[var(--cream)]">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-[var(--teal)] text-xs font-bold uppercase tracking-widest mb-4">What's included</p>
+        <h2 class="font-display font-bold text-[var(--ink)] mb-5" style="font-size:clamp(28px,4vw,48px)">Everything you need,<br/><em class="not-italic text-[var(--teal)]">nothing you don't.</em></h2>
+        <p class="text-[var(--ink)]/55 text-lg max-w-lg mx-auto leading-relaxed">A complete platform for small businesses to build, manage and launch professional websites.</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        <div class="bg-white rounded-2xl p-7 border border-black/5 hover:shadow-md transition-shadow">
+          <div class="w-11 h-11 bg-[var(--teal)]/10 rounded-xl flex items-center justify-center mb-5"><svg class="w-5 h-5 text-[var(--teal)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg></div>
+          <h3 class="font-display font-bold text-lg text-[var(--ink)] mb-2">Live Preview</h3>
+          <p class="text-[var(--ink)]/55 text-sm leading-relaxed">See every change reflected instantly. What you configure is exactly what you get.</p>
+        </div>
+        <div class="bg-white rounded-2xl p-7 border border-black/5 hover:shadow-md transition-shadow">
+          <div class="w-11 h-11 bg-[var(--teal)]/10 rounded-xl flex items-center justify-center mb-5"><svg class="w-5 h-5 text-[var(--teal)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg></div>
+          <h3 class="font-display font-bold text-lg text-[var(--ink)] mb-2">Design Themes</h3>
+          <p class="text-[var(--ink)]/55 text-sm leading-relaxed">Choose from curated colour palettes and typography combinations crafted by professional designers.</p>
+        </div>
+        <div class="bg-white rounded-2xl p-7 border border-black/5 hover:shadow-md transition-shadow">
+          <div class="w-11 h-11 bg-[var(--teal)]/10 rounded-xl flex items-center justify-center mb-5"><svg class="w-5 h-5 text-[var(--teal)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg></div>
+          <h3 class="font-display font-bold text-lg text-[var(--ink)] mb-2">Section Control</h3>
+          <p class="text-[var(--ink)]/55 text-sm leading-relaxed">Toggle hero, services, about, testimonials, gallery and contact sections on or off instantly.</p>
+        </div>
+        <div class="bg-white rounded-2xl p-7 border border-black/5 hover:shadow-md transition-shadow">
+          <div class="w-11 h-11 bg-[var(--teal)]/10 rounded-xl flex items-center justify-center mb-5"><svg class="w-5 h-5 text-[var(--teal)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></div>
+          <h3 class="font-display font-bold text-lg text-[var(--ink)] mb-2">Mobile First</h3>
+          <p class="text-[var(--ink)]/55 text-sm leading-relaxed">Every generated website is fully responsive. Toggle desktop and mobile views in the preview.</p>
+        </div>
+        <div class="bg-white rounded-2xl p-7 border border-black/5 hover:shadow-md transition-shadow">
+          <div class="w-11 h-11 bg-[var(--teal)]/10 rounded-xl flex items-center justify-center mb-5"><svg class="w-5 h-5 text-[var(--teal)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div>
+          <h3 class="font-display font-bold text-lg text-[var(--ink)] mb-2">Admin Dashboard</h3>
+          <p class="text-[var(--ink)]/55 text-sm leading-relaxed">Track all configurations and leads. Update statuses and manage your pipeline with ease.</p>
+        </div>
+        <div class="bg-white rounded-2xl p-7 border border-black/5 hover:shadow-md transition-shadow">
+          <div class="w-11 h-11 bg-[var(--teal)]/10 rounded-xl flex items-center justify-center mb-5"><svg class="w-5 h-5 text-[var(--teal)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg></div>
+          <h3 class="font-display font-bold text-lg text-[var(--ink)] mb-2">Cloud Save</h3>
+          <p class="text-[var(--ink)]/55 text-sm leading-relaxed">Configurations saved to Supabase. Falls back to localStorage automatically when offline.</p>
+        </div>
+      </div>
+      <div class="text-center mt-12">
+        <button onclick="showView('configurator');initWizard();" class="bg-[var(--ink)] text-[#f8f7f3] px-10 py-4 rounded-xl font-semibold text-base hover:bg-[var(--teal)] transition-colors inline-flex items-center gap-3">
+          Get Started Free <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="py-24 bg-[var(--ink)]">
+    <div class="max-w-4xl mx-auto px-6 text-center">
+      <p class="text-[var(--teal)] text-xs font-bold uppercase tracking-widest mb-4">Simple process</p>
+      <h2 class="font-display font-bold text-white mb-16" style="font-size:clamp(26px,4vw,44px)">Three steps to your new website</h2>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="text-center">
+          <div class="w-14 h-14 bg-[var(--teal)]/20 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl">📝</div>
+          <h3 class="font-display font-bold text-white text-lg mb-2">1. Enter your details</h3>
+          <p class="text-white/45 text-sm leading-relaxed">Business name, tagline, services, contact info — everything that goes on your site.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-14 h-14 bg-[var(--teal)]/20 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl">🎨</div>
+          <h3 class="font-display font-bold text-white text-lg mb-2">2. Choose your style</h3>
+          <p class="text-white/45 text-sm leading-relaxed">Pick a colour theme, typography and the sections you want on your website.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-14 h-14 bg-[var(--teal)]/20 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl">🚀</div>
+          <h3 class="font-display font-bold text-white text-lg mb-2">3. Preview and save</h3>
+          <p class="text-white/45 text-sm leading-relaxed">See your website live, then save. Our team builds and deploys it for you.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-[var(--ink)] border-t border-white/5 py-10">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2"><span class="dot"></span><span class="font-display font-bold text-white text-lg">SiteCraft</span></div>
+      <p class="text-white/30 text-sm">© 2025 SiteCraft · Built for small businesses · Hosted on Netlify</p>
+      <div class="flex items-center gap-2 text-white/30 text-sm"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>All systems operational</div>
+    </div>
+  </footer>
+</div>
+
+<!-- ═══════ CONFIGURATOR ═══════ -->
+<div id="view-configurator" class="view">
+  <div class="flex min-h-screen">
+    <aside class="sidebar hidden md:flex flex-col p-8">
+      <div class="flex items-center gap-2 mb-12 cursor-pointer" onclick="showView('landing')">
+        <span class="dot"></span><span class="font-display font-bold text-white text-xl">SiteCraft</span>
+      </div>
+      <p class="text-white/25 text-[10px] font-bold uppercase tracking-[.15em] mb-5">Configuration Steps</p>
+      <div class="space-y-1" id="step-nav"></div>
+      <div class="mt-auto space-y-3">
+        <div class="bg-white/5 rounded-xl p-4"><p class="text-white/35 text-xs leading-relaxed">Progress saved locally. Connect Supabase to persist to the cloud.</p></div>
+        <button onclick="showView('landing')" class="flex items-center gap-2 text-white/30 text-sm hover:text-white/60 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          Back to Home
+        </button>
+      </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div class="flex-1 overflow-y-auto bg-[var(--cream)] p-6 md:p-10">
+        <div class="md:hidden flex items-center justify-between mb-5">
+          <div class="flex items-center gap-2"><span class="dot"></span><span class="font-display font-bold text-[var(--ink)]">SiteCraft</span></div>
+          <button onclick="showView('landing')" class="text-[var(--ink)]/50 text-sm">← Home</button>
+        </div>
+        <div class="md:hidden mb-8">
+          <div class="flex items-center gap-3 mb-1.5">
+            <div class="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden"><div id="mob-bar" class="h-full rounded-full bg-[var(--teal)]" style="width:25%"></div></div>
+            <span id="mob-step-lbl" class="text-xs text-[var(--ink)]/40 whitespace-nowrap">Step 1 of 4</span>
+          </div>
+        </div>
+
+        <!-- STEP 1 -->
+        <div id="step-1" class="wiz-step">
+          <div class="mb-8">
+            <h2 class="font-display font-bold text-3xl text-[var(--ink)] mb-2">Tell us about your business</h2>
+            <p class="text-[var(--ink)]/45 text-sm">This information will appear on your website.</p>
+          </div>
+          <div class="space-y-5 max-w-xl">
+            <div>
+              <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Business Name <span class="text-rose-400">*</span></label>
+              <input id="f-name" type="text" class="field" placeholder="e.g. Bloom Florist" oninput="cfg('businessName',this.value)" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Business Type</label>
+              <div class="relative">
+                <select id="f-type" class="field appearance-none pr-10" onchange="cfg('businessType',this.value)">
+                  <option value="">Select type…</option>
+                  <option value="restaurant">Restaurant / Café</option>
+                  <option value="retail">Retail Shop</option>
+                  <option value="trades">Trades / Construction</option>
+                  <option value="health">Health &amp; Wellness</option>
+                  <option value="beauty">Beauty &amp; Hair</option>
+                  <option value="legal">Legal / Professional Services</option>
+                  <option value="tech">Technology</option>
+                  <option value="creative">Creative / Design</option>
+                  <option value="education">Education / Coaching</option>
+                  <option value="other">Other</option>
+                </select>
+                <svg class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[var(--ink)]/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Tagline</label>
+              <input id="f-tagline" type="text" class="field" placeholder="e.g. Fresh flowers for every occasion" oninput="cfg('tagline',this.value)" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Business Description</label>
+              <textarea id="f-desc" rows="4" class="field resize-none" placeholder="Describe what you do, who you serve, and what makes you unique…" oninput="cfg('description',this.value)"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Phone</label>
+                <input id="f-phone" type="tel" class="field" placeholder="+44 7700 000000" oninput="cfg('phone',this.value)" />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Email</label>
+                <input id="f-email" type="email" class="field" placeholder="hello@yourbusiness.com" oninput="cfg('email',this.value)" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Address</label>
+              <input id="f-address" type="text" class="field" placeholder="123 High Street, London, EC1A 1BB" oninput="cfg('address',this.value)" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-[var(--ink)] mb-1.5">Services <span class="text-[var(--ink)]/35 font-normal">(comma separated)</span></label>
+              <input id="f-services" type="text" class="field" placeholder="e.g. Wedding Flowers, Same-day Delivery, Corporate Events" oninput="cfg('services',this.value)" />
+            </div>
+          </div>
+          <div class="mt-10">
+            <button onclick="gotoStep(2)" class="bg-[var(--ink)] text-white px-7 py-3.5 rounded-xl font-semibold hover:bg-[var(--teal)] transition-colors inline-flex items-center gap-2 text-sm">
+              Next: Design Style <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div id="step-2" class="wiz-step hidden">
+          <div class="mb-8">
+            <h2 class="font-display font-bold text-3xl text-[var(--ink)] mb-2">Choose your design style</h2>
+            <p class="text-[var(--ink)]/45 text-sm">Pick a colour theme and typography that matches your brand.</p>
+          </div>
+          <div class="max-w-2xl space-y-8">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[.12em] text-[var(--ink)]/40 mb-4">Colour Theme</p>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-4" id="theme-grid"></div>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[.12em] text-[var(--ink)]/40 mb-4">Typography Style</p>
+              <div class="grid sm:grid-cols-3 gap-4" id="typo-grid"></div>
+            </div>
+          </div>
+          <div class="mt-10 flex gap-3">
+            <button onclick="gotoStep(1)" class="border border-gray-200 text-[var(--ink)]/60 px-6 py-3.5 rounded-xl font-semibold text-sm hover:border-gray-300 transition-colors">← Back</button>
+            <button onclick="gotoStep(3)" class="bg-[var(--ink)] text-white px-7 py-3.5 rounded-xl font-semibold hover:bg-[var(--teal)] transition-colors inline-flex items-center gap-2 text-sm">
+              Next: Page Sections <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div id="step-3" class="wiz-step hidden">
+          <div class="mb-8">
+            <h2 class="font-display font-bold text-3xl text-[var(--ink)] mb-2">Choose your page sections</h2>
+            <p class="text-[var(--ink)]/45 text-sm">Toggle which sections appear on your website.</p>
+          </div>
+          <div class="max-w-lg space-y-3" id="sections-list"></div>
+          <div class="mt-10 flex gap-3">
+            <button onclick="gotoStep(2)" class="border border-gray-200 text-[var(--ink)]/60 px-6 py-3.5 rounded-xl font-semibold text-sm hover:border-gray-300 transition-colors">← Back</button>
+            <button onclick="gotoStep(4)" class="bg-[var(--ink)] text-white px-7 py-3.5 rounded-xl font-semibold hover:bg-[var(--teal)] transition-colors inline-flex items-center gap-2 text-sm">
+              Preview &amp; Save <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 4 -->
+        <div id="step-4" class="wiz-step hidden">
+          <div class="mb-8">
+            <h2 class="font-display font-bold text-3xl text-[var(--ink)] mb-2">Preview &amp; Save</h2>
+            <p class="text-[var(--ink)]/45 text-sm">Review your configuration and save when ready.</p>
+          </div>
+          <div class="md:hidden mb-6 bg-[var(--ink)] rounded-2xl p-3">
+            <iframe id="mob-preview" class="w-full h-64 border-0 rounded-xl" title="Mobile Preview"></iframe>
+          </div>
+          <div class="bg-white rounded-2xl border border-black/5 p-6 max-w-xl mb-5 shadow-sm">
+            <h3 class="font-semibold text-[var(--ink)] mb-4 text-sm">Configuration Summary</h3>
+            <div id="cfg-summary" class="space-y-0 text-sm"></div>
+          </div>
+          <div class="bg-white rounded-2xl border border-black/5 p-6 max-w-xl shadow-sm">
+            <h3 class="font-semibold text-[var(--ink)] mb-1 text-sm">Save &amp; Submit</h3>
+            <p class="text-[var(--ink)]/40 text-xs mb-5">Your details are saved to the dashboard. Our team will be in touch.</p>
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-[var(--ink)] mb-1.5">Your Name</label>
+                  <input id="lead-name" type="text" class="field" placeholder="Jane Smith" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-[var(--ink)] mb-1.5">Contact Email</label>
+                  <input id="lead-email" type="email" class="field" placeholder="jane@example.com" />
+                </div>
+              </div>
+              <button id="save-btn" onclick="saveConfiguration()" class="w-full bg-[var(--teal)] text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-[var(--teal2)] transition-colors flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                Save Configuration
+              </button>
+            </div>
+          </div>
+          <div class="mt-6 flex gap-3">
+            <button onclick="gotoStep(3)" class="border border-gray-200 text-[var(--ink)]/60 px-6 py-3.5 rounded-xl font-semibold text-sm hover:border-gray-300 transition-colors">← Back</button>
+            <button onclick="showView('admin')" class="text-[var(--teal)] px-5 py-3.5 rounded-xl font-semibold text-sm hover:bg-[var(--teal)]/8 transition-colors">View Admin Dashboard →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE PREVIEW PANEL -->
+      <div class="hidden md:flex flex-col w-[460px] flex-shrink-0 bg-[#111119] p-5">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-white/35 text-[10px] font-bold uppercase tracking-[.12em]">Live Preview</span>
+          <div class="flex items-center bg-white/6 rounded-lg p-1 gap-1">
+            <button id="btn-desk" onclick="setPDevice('desktop')" class="p-1.5 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors bg-white/15 text-white">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </button>
+            <button id="btn-mob" onclick="setPDevice('mobile')" class="p-1.5 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 flex items-start justify-center overflow-hidden">
+          <div id="preview-wrap" class="w-full transition-all duration-300">
+            <div class="bg-[#1a1a28] rounded-xl p-2">
+              <iframe id="desk-preview" class="w-full border-0 rounded-lg" style="height:calc(100vh - 130px)" title="Live Preview"></iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ADMIN ═══════ -->
+<div id="view-admin" class="view">
+  <nav class="bg-[var(--ink)] border-b border-white/8 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="showView('landing')">
+          <span class="dot"></span><span class="font-display font-bold text-white text-lg">SiteCraft</span>
+        </div>
+        <span class="text-white/15">|</span>
+        <span class="text-white/40 text-sm">Admin Dashboard</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="loadAdmin()" class="text-white/40 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh
+        </button>
+        <button onclick="showView('configurator');initWizard();" class="bg-[var(--teal)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--teal2)] transition-colors">+ New Config</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="bg-[#1a1a28] border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div><p class="text-white/25 text-[10px] uppercase tracking-[.12em] mb-1">Total Configs</p><p id="s-configs" class="font-display text-white text-2xl font-bold">—</p></div>
+      <div><p class="text-white/25 text-[10px] uppercase tracking-[.12em] mb-1">Total Leads</p><p id="s-leads" class="font-display text-white text-2xl font-bold">—</p></div>
+      <div><p class="text-white/25 text-[10px] uppercase tracking-[.12em] mb-1">This Week</p><p id="s-week" class="font-display text-white text-2xl font-bold">—</p></div>
+      <div><p class="text-white/25 text-[10px] uppercase tracking-[.12em] mb-1">Top Theme</p><p id="s-theme" class="font-display text-white text-2xl font-bold">—</p></div>
+    </div>
+  </div>
+
+  <div class="bg-[var(--mist)] min-h-screen">
+    <div class="max-w-7xl mx-auto px-6 py-7">
+      <div class="flex gap-1 mb-6 bg-white rounded-xl p-1 w-fit border border-black/5 shadow-sm">
+        <button id="tab-leads" onclick="switchTab('leads')" class="px-5 py-2 rounded-lg text-sm font-semibold transition-all bg-[var(--ink)] text-white">Leads</button>
+        <button id="tab-configs" onclick="switchTab('configs')" class="px-5 py-2 rounded-lg text-sm font-semibold transition-all text-[var(--ink)]/55 hover:text-[var(--ink)]">Configurations</button>
+      </div>
+
+      <div id="panel-leads" class="adm-panel">
+        <div class="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+            <h3 class="font-semibold text-[var(--ink)] text-sm">All Leads</h3>
+            <span id="leads-badge" class="bg-[var(--teal)]/10 text-[var(--teal)] text-xs font-bold px-3 py-1 rounded-full">0 leads</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="tbl-head"><tr>
+                <th class="px-5 py-3 text-left">Name</th>
+                <th class="px-5 py-3 text-left">Email</th>
+                <th class="px-5 py-3 text-left">Business</th>
+                <th class="px-5 py-3 text-left">Type</th>
+                <th class="px-5 py-3 text-left">Status</th>
+                <th class="px-5 py-3 text-left">Date</th>
+                <th class="px-5 py-3 text-left">Update</th>
+              </tr></thead>
+              <tbody id="leads-body" class="divide-y divide-gray-50">
+                <tr><td colspan="7" class="px-5 py-12 text-center text-[var(--ink)]/25 text-sm">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-configs" class="adm-panel hidden">
+        <div class="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+            <h3 class="font-semibold text-[var(--ink)] text-sm">All Configurations</h3>
+            <span id="configs-badge" class="bg-[var(--teal)]/10 text-[var(--teal)] text-xs font-bold px-3 py-1 rounded-full">0 configs</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="tbl-head"><tr>
+                <th class="px-5 py-3 text-left">Business</th>
+                <th class="px-5 py-3 text-left">Type</th>
+                <th class="px-5 py-3 text-left">Theme</th>
+                <th class="px-5 py-3 text-left">Typography</th>
+                <th class="px-5 py-3 text-left">Sections</th>
+                <th class="px-5 py-3 text-left">Saved</th>
+                <th class="px-5 py-3 text-left">Action</th>
+              </tr></thead>
+              <tbody id="configs-body" class="divide-y divide-gray-50">
+                <tr><td colspan="7" class="px-5 py-12 text-center text-[var(--ink)]/25 text-sm">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="sb-notice" class="hidden mt-5 bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-3">
+        <svg class="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <div>
+          <p class="text-amber-800 font-semibold text-sm">Supabase not connected — using localStorage</p>
+          <p class="text-amber-700 text-sm mt-1">Replace <code class="bg-amber-100 px-1 rounded">YOUR_SUPABASE_URL</code> and <code class="bg-amber-100 px-1 rounded">YOUR_SUPABASE_ANON_KEY</code> in the script section with your project credentials. See README.md for the SQL schema.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Supabase Config ── Replace with your credentials ── */
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+const SB_READY = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+let sb = null;
+if (SB_READY) { try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch(e) {} }
+
+/* ── State ── */
+let state = {
+  businessName:'', businessType:'', tagline:'', description:'',
+  phone:'', email:'', address:'', services:'',
+  theme:'slate', typography:'modern',
+  sections:{ hero:true, services:true, about:true, testimonials:true, gallery:false, contact:true },
+};
+let currentStep = 1, pDevice = 'desktop';
+let adminCache = { leads:[], configs:[] };
+
+/* ── Design Data ── */
+const THEMES = {
+  slate:    { name:'Slate & Amber',  bg:'#f8fafc', primary:'#1e293b', accent:'#f59e0b', text:'#0f172a', card:'#ffffff', swatch:['#f8fafc','#1e293b','#f59e0b'], dark:false },
+  midnight: { name:'Midnight',       bg:'#0d0d1a', primary:'#6d28d9', accent:'#a78bfa', text:'#f8fafc', card:'#18182e', swatch:['#0d0d1a','#6d28d9','#a78bfa'], dark:true  },
+  forest:   { name:'Forest',         bg:'#f0fdf4', primary:'#166534', accent:'#22c55e', text:'#14532d', card:'#ffffff', swatch:['#f0fdf4','#166534','#22c55e'], dark:false },
+  coral:    { name:'Coral',          bg:'#fff5f0', primary:'#c2410c', accent:'#f97316', text:'#1c1917', card:'#ffffff', swatch:['#fff5f0','#c2410c','#f97316'], dark:false },
+  rose:     { name:'Rose',           bg:'#fff1f2', primary:'#9f1239', accent:'#fb7185', text:'#1c1917', card:'#ffffff', swatch:['#fff1f2','#9f1239','#fb7185'], dark:false },
+};
+const TYPOS = {
+  modern:  { name:'Modern',  desc:'Clean & sharp',      head:"'DM Sans',sans-serif",          body:"'DM Sans',sans-serif",          wt:'700', gfont:'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700&display=swap',                                            sample:'DM Sans'          },
+  classic: { name:'Classic', desc:'Elegant & refined',  head:"'Playfair Display',serif",      body:"'Lora',serif",                  wt:'600', gfont:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lora&display=swap',                       sample:'Playfair Display' },
+  bold:    { name:'Bold',    desc:'Strong & impactful', head:"'Oswald',sans-serif",           body:"'Source Sans 3',sans-serif",    wt:'700', gfont:'https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Source+Sans+3&display=swap',                        sample:'Oswald'           },
+};
+const SECTIONS_META = [
+  { id:'hero',         label:'Hero Banner',   desc:'Main headline and CTA',          icon:'🏠', required:true  },
+  { id:'services',     label:'Services',      desc:'Showcase what you offer',         icon:'⚡' },
+  { id:'about',        label:'About Us',      desc:'Tell your story and build trust', icon:'👋' },
+  { id:'testimonials', label:'Testimonials',  desc:'Customer reviews & social proof', icon:'⭐' },
+  { id:'gallery',      label:'Photo Gallery', desc:'Showcase your work with images',  icon:'🖼️' },
+  { id:'contact',      label:'Contact Form',  desc:'Let visitors get in touch',       icon:'📬' },
+];
+
+/* ── Router ── */
+function showView(n) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+n).classList.add('active');
+  window.scrollTo(0,0);
+  if(n==='configurator'){renderAll();refreshPreviews();}
+  if(n==='admin'){loadAdmin();}
+}
+
+/* ── Wizard ── */
+function initWizard(){ gotoStep(1); renderAll(); refreshPreviews(); }
+
+function gotoStep(n){
+  document.querySelectorAll('.wiz-step').forEach(s=>s.classList.add('hidden'));
+  document.getElementById('step-'+n).classList.remove('hidden');
+  currentStep=n;
+  const bar=document.getElementById('mob-bar'), lbl=document.getElementById('mob-step-lbl');
+  if(bar) bar.style.width=(n/4*100)+'%';
+  if(lbl) lbl.textContent=`Step ${n} of 4`;
+  buildStepNav(n);
+  if(n===4){buildSummary();syncMobilePreview();}
+  window.scrollTo(0,0);
+}
+
+function buildStepNav(active){
+  const wrap=document.getElementById('step-nav'); if(!wrap) return;
+  const steps=['Business Info','Design Style','Page Sections','Preview & Save'];
+  wrap.innerHTML=steps.map((lbl,i)=>{
+    const n=i+1;
+    let cls=n<active?'done':n===active?'active':'pending';
+    let inner=n<active?'✓':n;
+    let textCls=n===active?'text-white font-semibold':n<active?'text-white/60':'text-white/30';
+    return `<button onclick="gotoStep(${n})" class="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-left hover:bg-white/5 transition-colors">
+      <span class="step-node ${cls}">${inner}</span>
+      <span class="text-sm ${textCls}">${lbl}</span>
+    </button>`;
+  }).join('');
+}
+
+/* ── State mutation ── */
+function cfg(k,v){ state[k]=v; refreshPreviews(); if(currentStep===4) buildSummary(); }
+function setSection(id,checked){ state.sections[id]=checked; refreshPreviews(); }
+
+/* ── Render UI ── */
+function renderAll(){ renderThemes(); renderTypos(); renderSections(); }
+
+function renderThemes(){
+  const g=document.getElementById('theme-grid'); if(!g) return;
+  g.innerHTML=Object.entries(THEMES).map(([k,t])=>`
+    <div class="sel-card ${state.theme===k?'selected':''} overflow-hidden" onclick="pickTheme('${k}')">
+      <div class="h-14 flex">${t.swatch.map(c=>`<div class="flex-1 h-full" style="background:${c}"></div>`).join('')}</div>
+      <div class="px-3 py-2.5 bg-white border border-t-0 border-gray-100 rounded-b-xl">
+        <p class="text-sm font-semibold text-[var(--ink)]">${t.name}</p>
+      </div>
+    </div>`).join('');
+}
+function pickTheme(k){ state.theme=k; renderThemes(); refreshPreviews(); }
+
+function renderTypos(){
+  const g=document.getElementById('typo-grid'); if(!g) return;
+  g.innerHTML=Object.entries(TYPOS).map(([k,t])=>`
+    <div class="sel-card ${state.typography===k?'selected':''} bg-white border border-gray-100 p-5" onclick="pickTypo('${k}')">
+      <p class="text-2xl font-bold mb-1" style="font-family:'${t.sample}',serif;font-weight:${t.wt}">Aa</p>
+      <p class="text-sm font-semibold text-[var(--ink)]">${t.name}</p>
+      <p class="text-xs text-[var(--ink)]/40 mt-0.5">${t.desc}</p>
+    </div>`).join('');
+}
+function pickTypo(k){ state.typography=k; renderTypos(); refreshPreviews(); }
+
+function renderSections(){
+  const el=document.getElementById('sections-list'); if(!el) return;
+  el.innerHTML=SECTIONS_META.map(s=>`
+    <div class="bg-white rounded-xl border border-black/5 px-4 py-3.5 flex items-center justify-between gap-4 hover:border-gray-200 transition-colors">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">${s.icon}</span>
+        <div>
+          <div class="flex items-center gap-2">
+            <p class="text-sm font-semibold text-[var(--ink)]">${s.label}</p>
+            ${s.required?'<span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Required</span>':''}
+          </div>
+          <p class="text-xs text-[var(--ink)]/35 mt-0.5">${s.desc}</p>
+        </div>
+      </div>
+      <label class="tog">
+        <input type="checkbox" ${state.sections[s.id]?'checked':''} ${s.required?'disabled':''} onchange="setSection('${s.id}',this.checked)" />
+        <span class="tog-slider"></span>
+      </label>
+    </div>`).join('');
+}
+
+function buildSummary(){
+  const el=document.getElementById('cfg-summary'); if(!el) return;
+  const th=THEMES[state.theme], ty=TYPOS[state.typography];
+  const active=Object.entries(state.sections).filter(([,v])=>v).map(([k])=>k);
+  const rows=[
+    ['Business', state.businessName||'—'],
+    ['Type',     state.businessType||'—'],
+    ['Theme',    `<span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-full inline-block" style="background:${th.primary}"></span>${th.name}</span>`],
+    ['Typography', ty.name],
+    ['Sections', active.join(', ')||'—'],
+  ];
+  el.innerHTML=rows.map((r,i)=>`
+    <div class="flex justify-between py-2.5 ${i<rows.length-1?'border-b border-gray-50':''}">
+      <span class="text-[var(--ink)]/45 text-sm">${r[0]}</span>
+      <span class="font-medium text-[var(--ink)] text-sm text-right">${r[1]}</span>
+    </div>`).join('');
+}
+
+/* ── Preview HTML builder ── */
+function buildPreviewHTML(){
+  const th=THEMES[state.theme]||THEMES.slate;
+  const ty=TYPOS[state.typography]||TYPOS.modern;
+  const biz=state.businessName||'Your Business';
+  const tagline=state.tagline||'Welcome — we\'re glad you\'re here';
+  const desc=state.description||'We provide exceptional services tailored to your needs. Get in touch today to find out how we can help.';
+  const svcs=state.services?state.services.split(',').map(s=>s.trim()).filter(Boolean):['Professional Service','Expert Consultation','Quality Delivery'];
+  const DARK=th.dark;
+  const mutedTxt=DARK?'rgba(255,255,255,0.55)':th.text+'88';
+  const sHTML=[];
+
+  if(state.sections.hero) sHTML.push(`
+    <section style="background:${th.primary};padding:70px 32px;text-align:center;position:relative;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 65% 50%,${th.accent}28 0%,transparent 68%);pointer-events:none"></div>
+      <div style="position:relative;max-width:600px;margin:0 auto">
+        <p style="font-family:${ty.body};color:${th.accent};font-size:12px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:14px;font-weight:600">${state.businessType||'Welcome'}</p>
+        <h1 style="font-family:${ty.head};font-weight:${ty.wt};font-size:clamp(28px,5vw,52px);color:#fff;margin-bottom:14px;line-height:1.12">${biz}</h1>
+        <p style="font-family:${ty.body};color:rgba(255,255,255,0.65);font-size:17px;margin-bottom:28px;line-height:1.65">${tagline}</p>
+        <a href="#" style="display:inline-block;background:${th.accent};color:${DARK?'#111':'#fff'};padding:13px 32px;border-radius:12px;font-family:${ty.body};font-weight:700;font-size:14px;text-decoration:none">Get In Touch</a>
+      </div>
+    </section>`);
+
+  if(state.sections.services){
+    const cards=svcs.slice(0,3).map((s,i)=>`
+      <div style="background:${th.card};border:1px solid ${DARK?'rgba(255,255,255,0.1)':'#e5e7eb'};border-radius:14px;padding:24px;flex:1;min-width:180px">
+        <div style="width:40px;height:40px;background:${th.primary}1a;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:18px">${['⚡','🎯','✨'][i]||'★'}</div>
+        <h3 style="font-family:${ty.head};font-weight:${ty.wt};color:${th.text};font-size:15px;margin-bottom:7px">${s}</h3>
+        <p style="font-family:${ty.body};color:${mutedTxt};font-size:13px;line-height:1.6">Professional ${s.toLowerCase()} tailored to your exact requirements.</p>
+      </div>`).join('');
+    sHTML.push(`<section style="background:${th.bg};padding:56px 32px"><div style="max-width:860px;margin:0 auto">
+      <h2 style="font-family:${ty.head};font-weight:${ty.wt};color:${th.text};font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:6px">Our Services</h2>
+      <p style="font-family:${ty.body};color:${mutedTxt};text-align:center;font-size:14px;margin-bottom:34px">Everything you need in one place</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">${cards}</div></div></section>`);
+  }
+
+  if(state.sections.about) sHTML.push(`
+    <section style="background:${DARK?th.card:'#f1f5f9'};padding:56px 32px">
+      <div style="max-width:860px;margin:0 auto;display:flex;gap:40px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <p style="font-family:${ty.body};color:${th.primary};font-size:11px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px;font-weight:700">About Us</p>
+          <h2 style="font-family:${ty.head};font-weight:${ty.wt};color:${th.text};font-size:clamp(22px,3vw,32px);margin-bottom:16px;line-height:1.2">Who We Are</h2>
+          <p style="font-family:${ty.body};color:${mutedTxt};line-height:1.75;font-size:14px">${desc}</p>
+          <a href="#" style="display:inline-block;margin-top:20px;color:${th.primary};font-family:${ty.body};font-weight:600;font-size:13px;text-decoration:none;border-bottom:2px solid ${th.primary};padding-bottom:1px">Learn More →</a>
+        </div>
+        <div style="flex:1;min-width:200px;background:${th.primary}18;border-radius:18px;height:200px;display:flex;align-items:center;justify-content:center;font-size:56px">🏢</div>
+      </div>
+    </section>`);
+
+  if(state.sections.testimonials){
+    const tms=[{name:'Sarah J.',txt:'Outstanding service from start to finish. Highly recommend!',stars:5},{name:'Mike R.',txt:'Professional, reliable, and great value for money.',stars:5},{name:'Emma K.',txt:'Exceeded all expectations. Will definitely use again.',stars:5}];
+    const cards=tms.map(t=>`
+      <div style="background:${th.card};border:1px solid ${DARK?'rgba(255,255,255,0.1)':'#e5e7eb'};border-radius:14px;padding:22px;flex:1;min-width:180px">
+        <div style="color:${th.accent};font-size:16px;margin-bottom:10px">${'★'.repeat(t.stars)}</div>
+        <p style="font-family:${ty.body};color:${mutedTxt};font-size:13px;line-height:1.65;margin-bottom:14px;font-style:italic">"${t.txt}"</p>
+        <p style="font-family:${ty.head};font-weight:600;color:${th.text};font-size:13px">— ${t.name}</p>
+      </div>`).join('');
+    sHTML.push(`<section style="background:${th.bg};padding:56px 32px"><div style="max-width:860px;margin:0 auto">
+      <h2 style="font-family:${ty.head};font-weight:${ty.wt};color:${th.text};font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:6px">What Clients Say</h2>
+      <p style="font-family:${ty.body};color:${mutedTxt};text-align:center;font-size:14px;margin-bottom:34px">Real reviews from real customers</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">${cards}</div></div></section>`);
+  }
+
+  if(state.sections.gallery){
+    const items=['🏠','🎨','✨','🎯','⚡','🌟'].map(e=>`<div style="background:${th.primary}18;border-radius:14px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:32px">${e}</div>`).join('');
+    sHTML.push(`<section style="background:${DARK?th.card:'#f1f5f9'};padding:56px 32px"><div style="max-width:860px;margin:0 auto">
+      <h2 style="font-family:${ty.head};font-weight:${ty.wt};color:${th.text};font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:32px">Our Work</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">${items}</div></div></section>`);
+  }
+
+  if(state.sections.contact){
+    const ci=[state.phone,state.email,state.address].filter(Boolean).map((v,i)=>`<span style="display:flex;align-items:center;gap:6px;font-family:${ty.body};color:rgba(255,255,255,0.6);font-size:13px">${['📞','✉️','📍'][i]} ${v}</span>`).join('');
+    sHTML.push(`<section style="background:${th.primary};padding:56px 32px;text-align:center"><div style="max-width:560px;margin:0 auto">
+      <h2 style="font-family:${ty.head};font-weight:${ty.wt};color:#fff;font-size:clamp(22px,3vw,34px);margin-bottom:10px">Get In Touch</h2>
+      <p style="font-family:${ty.body};color:rgba(255,255,255,0.55);font-size:14px;margin-bottom:36px">We'd love to hear from you</p>
+      <div style="background:rgba(255,255,255,0.1);border-radius:16px;padding:26px;text-align:left">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <input placeholder="Your Name" style="background:${th.card};border:1px solid ${DARK?'rgba(255,255,255,0.1)':'#e5e7eb'};border-radius:9px;padding:11px 14px;font-family:${ty.body};font-size:13px;color:${th.text};width:100%;box-sizing:border-box"/>
+          <input placeholder="Your Email" style="background:${th.card};border:1px solid ${DARK?'rgba(255,255,255,0.1)':'#e5e7eb'};border-radius:9px;padding:11px 14px;font-family:${ty.body};font-size:13px;color:${th.text};width:100%;box-sizing:border-box"/>
+        </div>
+        <textarea placeholder="How can we help?" rows="3" style="background:${th.card};border:1px solid ${DARK?'rgba(255,255,255,0.1)':'#e5e7eb'};border-radius:9px;padding:11px 14px;font-family:${ty.body};font-size:13px;color:${th.text};width:100%;box-sizing:border-box;resize:none;margin-bottom:12px"></textarea>
+        <button style="background:${th.accent};color:${DARK?'#0d0d1a':'#fff'};border:none;padding:13px;border-radius:9px;font-family:${ty.body};font-weight:700;font-size:14px;cursor:pointer;width:100%">Send Message</button>
+      </div>
+      ${ci?`<div style="margin-top:24px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap">${ci}</div>`:''}
+    </div></section>`);
+  }
+
+  const navLinks=['about','services','contact'].filter(id=>state.sections[id]).map(id=>`<li><a href="#" style="text-decoration:none;color:${DARK?'rgba(255,255,255,0.88)':th.text};opacity:.65;font-size:13px;font-family:${ty.body}">${id.charAt(0).toUpperCase()+id.slice(1)}</a></li>`).join('');
+
+  return `<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${biz}</title>
+<link href="${ty.gfont}" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:${th.bg};color:${th.text};font-family:${ty.body}}nav{background:${th.bg};border-bottom:1px solid ${DARK?'rgba(255,255,255,0.08)':'#e5e7eb'};padding:14px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}.logo{font-family:${ty.head};font-weight:${ty.wt};font-size:18px;color:${th.text}}nav ul{list-style:none;display:flex;gap:20px}.cta{background:${th.primary};color:#fff;padding:8px 18px;border-radius:8px;font-family:${ty.body};font-weight:600;font-size:13px;text-decoration:none}footer{background:${th.primary};padding:32px;text-align:center;color:rgba(255,255,255,0.45);font-family:${ty.body};font-size:13px}</style>
+</head><body>
+<nav><div class="logo">${biz}</div><ul>${navLinks}</ul><a href="#" class="cta">Get Started</a></nav>
+${sHTML.join('')}
+<footer>
+  <p style="font-family:${ty.head};font-weight:${ty.wt};font-size:17px;color:rgba(255,255,255,0.88);margin-bottom:6px">${biz}</p>
+  <p>© ${new Date().getFullYear()} ${biz}. All rights reserved.</p>
+  ${state.address?`<p style="margin-top:6px;opacity:.6">${state.address}</p>`:''}
+</footer></body></html>`;
+}
+
+/* ── Preview refresh ── */
+let previewDebounce=null;
+function refreshPreviews(){
+  clearTimeout(previewDebounce);
+  previewDebounce=setTimeout(()=>{
+    const html=buildPreviewHTML();
+    ['desk-preview','hero-preview'].forEach(id=>{const f=document.getElementById(id);if(f) f.srcdoc=html;});
+  },60);
+}
+function syncMobilePreview(){ const f=document.getElementById('mob-preview'); if(f) f.srcdoc=buildPreviewHTML(); }
+function setPDevice(d){
+  pDevice=d;
+  const wrap=document.getElementById('preview-wrap');
+  const bD=document.getElementById('btn-desk'), bM=document.getElementById('btn-mob');
+  if(!wrap) return;
+  if(d==='mobile'){ wrap.style.maxWidth='375px'; wrap.style.margin='0 auto'; bM.classList.add('bg-white/15','text-white'); bD.classList.remove('bg-white/15','text-white'); }
+  else { wrap.style.maxWidth=''; wrap.style.margin=''; bD.classList.add('bg-white/15','text-white'); bM.classList.remove('bg-white/15','text-white'); }
+}
+
+/* ── Save ── */
+async function saveConfiguration(){
+  if(!state.businessName.trim()){toast('Please enter a business name first','warn');return;}
+  const lName=document.getElementById('lead-name').value.trim();
+  const lEmail=document.getElementById('lead-email').value.trim();
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true;
+  btn.innerHTML=`<svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Saving…`;
+  if(SB_READY&&sb){
+    try{
+      const{data:saved,error:e1}=await sb.from('configurations').insert([{business_name:state.businessName,business_type:state.businessType,tagline:state.tagline,description:state.description,phone:state.phone,email:state.email,address:state.address,theme:state.theme,typography:state.typography,sections:state.sections,config_data:state}]).select().single();
+      if(e1) throw e1;
+      if(lEmail) await sb.from('leads').insert([{lead_name:lName,business_name:state.businessName,email:lEmail,phone:state.phone,business_type:state.businessType,status:'new',config_id:saved.id}]);
+      toast('Configuration saved to Supabase ✓');
+    }catch(err){saveLocal(lName,lEmail);toast('Saved locally (Supabase error)','warn');}
+  }else{saveLocal(lName,lEmail);toast('Saved locally — connect Supabase for cloud sync ✓');}
+  setTimeout(()=>{btn.disabled=false;btn.innerHTML=`<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg> Save Configuration`;},2200);
+}
+
+function saveLocal(lName,lEmail){
+  const cfgs=JSON.parse(localStorage.getItem('sc_configs')||'[]');
+  const lds=JSON.parse(localStorage.getItem('sc_leads')||'[]');
+  const id='lc_'+Date.now();
+  cfgs.unshift({id,...state,created_at:new Date().toISOString()});
+  localStorage.setItem('sc_configs',JSON.stringify(cfgs));
+  if(lEmail){
+    lds.unshift({id:'ll_'+Date.now(),lead_name:lName,business_name:state.businessName,email:lEmail,phone:state.phone,business_type:state.businessType,status:'new',config_id:id,created_at:new Date().toISOString()});
+    localStorage.setItem('sc_leads',JSON.stringify(lds));
+  }
+}
+
+/* ── Admin ── */
+async function loadAdmin(){
+  if(SB_READY&&sb){
+    try{
+      const[{data:cfgs},{data:lds}]=await Promise.all([sb.from('configurations').select('*').order('created_at',{ascending:false}),sb.from('leads').select('*').order('created_at',{ascending:false})]);
+      adminCache.configs=cfgs||[]; adminCache.leads=lds||[];
+      document.getElementById('sb-notice').classList.add('hidden');
+    }catch(err){loadLocalAdmin();document.getElementById('sb-notice').classList.remove('hidden');}
+  }else{loadLocalAdmin();document.getElementById('sb-notice').classList.remove('hidden');}
+  renderAdmin();
+}
+function loadLocalAdmin(){ adminCache.configs=JSON.parse(localStorage.getItem('sc_configs')||'[]'); adminCache.leads=JSON.parse(localStorage.getItem('sc_leads')||'[]'); }
+
+function renderAdmin(){
+  const{configs,leads}=adminCache;
+  document.getElementById('s-configs').textContent=configs.length;
+  document.getElementById('s-leads').textContent=leads.length;
+  const wk=new Date(); wk.setDate(wk.getDate()-7);
+  document.getElementById('s-week').textContent=configs.filter(c=>new Date(c.created_at)>wk).length;
+  const tc={}; configs.forEach(c=>{tc[c.theme]=(tc[c.theme]||0)+1;});
+  const topT=Object.entries(tc).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('s-theme').textContent=topT?(THEMES[topT[0]]?.name||topT[0]):'—';
+  document.getElementById('leads-badge').textContent=leads.length+(leads.length===1?' lead':' leads');
+  document.getElementById('configs-badge').textContent=configs.length+(configs.length===1?' config':' configs');
+
+  const lb=document.getElementById('leads-body');
+  if(!leads.length){ lb.innerHTML=`<tr><td colspan="7" class="px-5 py-12 text-center text-[var(--ink)]/25 text-sm">No leads yet — save a configuration to create one.</td></tr>`; }
+  else{ lb.innerHTML=leads.map(l=>`
+    <tr class="hover:bg-gray-50 transition-colors">
+      <td class="px-5 py-3.5 font-medium text-[var(--ink)]">${l.lead_name||l.name||'—'}</td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/55">${l.email||'—'}</td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/75">${l.business_name||'—'}</td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/55 capitalize">${l.business_type||'—'}</td>
+      <td class="px-5 py-3.5"><span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${statusBadge(l.status)}">${l.status||'new'}</span></td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/35 text-xs">${fmtDate(l.created_at)}</td>
+      <td class="px-5 py-3.5">
+        <select onchange="updateStatus('${l.id}',this.value,'leads')" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-[var(--ink)]/60 bg-white">
+          <option value="new" ${l.status==='new'?'selected':''}>New</option>
+          <option value="contacted" ${l.status==='contacted'?'selected':''}>Contacted</option>
+          <option value="in_progress" ${l.status==='in_progress'?'selected':''}>In Progress</option>
+          <option value="completed" ${l.status==='completed'?'selected':''}>Completed</option>
+          <option value="closed" ${l.status==='closed'?'selected':''}>Closed</option>
+        </select>
+      </td>
+    </tr>`).join('');}
+
+  const cb=document.getElementById('configs-body');
+  if(!configs.length){ cb.innerHTML=`<tr><td colspan="7" class="px-5 py-12 text-center text-[var(--ink)]/25 text-sm">No configurations saved yet.</td></tr>`; }
+  else{ cb.innerHTML=configs.map(c=>{
+    const th=THEMES[c.theme]||THEMES.slate, ty=TYPOS[c.typography]||TYPOS.modern;
+    const secs=typeof c.sections==='object'?Object.entries(c.sections).filter(([,v])=>v).map(([k])=>k):[];
+    const safeId=c.id||'';
+    return `<tr class="hover:bg-gray-50 transition-colors">
+      <td class="px-5 py-3.5 font-medium text-[var(--ink)]">${c.business_name||'—'}</td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/55 capitalize">${c.business_type||'—'}</td>
+      <td class="px-5 py-3.5"><div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-full" style="background:${th.primary}"></span><span class="text-[var(--ink)]/65 text-sm">${th.name}</span></div></td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/55 text-sm">${ty.name}</td>
+      <td class="px-5 py-3.5"><div class="flex flex-wrap gap-1">${secs.slice(0,3).map(s=>`<span class="bg-gray-100 text-[var(--ink)]/55 text-xs px-2 py-0.5 rounded">${s}</span>`).join('')}${secs.length>3?`<span class="text-[var(--ink)]/30 text-xs">+${secs.length-3}</span>`:''}</div></td>
+      <td class="px-5 py-3.5 text-[var(--ink)]/35 text-xs">${fmtDate(c.created_at)}</td>
+      <td class="px-5 py-3.5"><button onclick="editConfig('${safeId}')" class="text-[var(--teal)] text-xs font-semibold hover:underline">Edit</button></td>
+    </tr>`;
+  }).join('');}
+}
+
+function editConfig(id){
+  const c=adminCache.configs.find(x=>x.id===id); if(!c) return;
+  Object.assign(state,{businessName:c.business_name||c.businessName||'',businessType:c.business_type||c.businessType||'',tagline:c.tagline||'',description:c.description||'',phone:c.phone||'',email:c.email||'',address:c.address||'',services:c.services||'',theme:c.theme||'slate',typography:c.typography||'modern',sections:c.sections||state.sections});
+  showView('configurator');
+  setTimeout(()=>{
+    const map={businessName:'f-name',businessType:'f-type',tagline:'f-tagline',description:'f-desc',phone:'f-phone',email:'f-email',address:'f-address',services:'f-services'};
+    Object.entries(map).forEach(([k,id])=>{const el=document.getElementById(id);if(el) el.value=state[k]||'';});
+    renderAll(); refreshPreviews();
+  },100);
+}
+
+function statusBadge(s){ return({new:'bg-blue-50 text-blue-600',contacted:'bg-yellow-50 text-yellow-600',in_progress:'bg-violet-50 text-violet-600',completed:'bg-emerald-50 text-emerald-600',closed:'bg-gray-100 text-gray-500'})[s]||'bg-gray-100 text-gray-500'; }
+
+async function updateStatus(id,status,table){
+  if(SB_READY&&sb){ await sb.from(table).update({status}).eq('id',id); }
+  else{ const key=table==='leads'?'sc_leads':'sc_configs'; const rows=JSON.parse(localStorage.getItem(key)||'[]'); const idx=rows.findIndex(r=>r.id===id); if(idx!==-1){rows[idx].status=status;localStorage.setItem(key,JSON.stringify(rows));} }
+  toast('Status updated ✓');
+}
+
+function switchTab(name){
+  document.querySelectorAll('.adm-panel').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('panel-'+name).classList.remove('hidden');
+  ['leads','configs'].forEach(t=>{const btn=document.getElementById('tab-'+t);if(t===name){btn.classList.add('bg-[var(--ink)]','text-white');btn.classList.remove('text-[var(--ink)]/55');}else{btn.classList.remove('bg-[var(--ink)]','text-white');btn.classList.add('text-[var(--ink)]/55');}});
+}
+
+/* ── Utils ── */
+function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function smoothTo(id){ document.getElementById(id)?.scrollIntoView({behavior:'smooth'}); }
+let toastTimer=null;
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast'), txt=document.getElementById('toast-msg');
+  txt.textContent=msg;
+  el.className={ok:'fixed top-5 right-5 z-[9999] bg-emerald-600 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 show',warn:'fixed top-5 right-5 z-[9999] bg-amber-500 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 show',err:'fixed top-5 right-5 z-[9999] bg-rose-600 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 show'}[type];
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.style.transform='translateX(130%)';setTimeout(()=>{el.className=el.className.replace(' show','');el.style.transform='';},350);},3500);
+}
+
+/* ── Init ── */
+(function(){ buildStepNav(1); setPDevice('desktop'); setTimeout(refreshPreviews,400); })();
+</script>
+</body>
+</html>
